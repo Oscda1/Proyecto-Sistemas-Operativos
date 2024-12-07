@@ -83,6 +83,57 @@ void editar(char **args) {
   printf("Archivo %s editado exitosamente.\n", args[1]);
 }
 
+void ejecutar_redireccion(char *comando) {
+    char *comando_base;
+    char *archivo;
+    int append = 0; // Modo para >> (append)
+
+    size_t len = strlen(comando);
+    if(len > 0 && comando[len-1] == '\n'){
+      comando[len-1] = '\0';
+    }
+
+    // Detectar el tipo de redirección
+    if ((archivo = strstr(comando, ">>")) != NULL) {
+        append = 1; // Modo append
+    } else if ((archivo = strchr(comando, '>')) != NULL) {
+        append = 0; // Modo truncar
+    } else {
+        ejecutar_comando(comando);
+        return;
+    }
+
+    // Separar el comando y el archivo
+    *archivo = '\0'; // Reemplazar '>' o ">>" por un terminador nulo
+    archivo += append ? 2 : 1; // Saltar '>' o ">>"
+    while (*archivo == ' ') archivo++; // Saltar espacios en blanco
+
+    if (*archivo == '\0') {
+        fprintf(stderr, "Error: no se especificó archivo para redirección.\n");
+        return;
+    }
+
+    // Abrir el archivo para redirección
+    int fd = open(archivo, O_WRONLY | O_CREAT | (append ? O_APPEND : O_TRUNC), 0644);
+    if (fd == -1) {
+        perror("Error al abrir el archivo");
+        return;
+    }
+
+    // Ejecutar el comando con redirección
+    comando_base = strtok(comando, "\n"); // Eliminar salto de línea
+    if (fork() == 0) {
+        dup2(fd, STDOUT_FILENO); // Redirigir salida estándar al archivo
+        close(fd);
+        ejecutar_comando(comando_base);
+        exit(EXIT_FAILURE); // Salir si execvp falla
+    } else {
+        close(fd);
+        wait(NULL); // Esperar al proceso hijo
+    }
+}
+
+
 void ejecutar_pipe(char *comando) {
   char *comandos[2];
   comandos[0] = strtok(comando, "|");
@@ -146,7 +197,9 @@ int main() {
       editar(args);
     } else if (strchr(comando, '|') != NULL) {
       ejecutar_pipe(comando);
-    } else if (strcmp(comando, "estado\n") == 0) {
+    } else if (strchr(comando, '>') != NULL) {
+      ejecutar_redireccion(comando);
+    }else if (strcmp(comando, "estado\n") == 0) {
       ejecutar_comando("./estado");
     } else if (strcmp(comando, "ppm\n") == 0) {
       ejecutar_comando("./ppm");

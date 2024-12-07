@@ -3,7 +3,7 @@
 # Configuración de parámetros
 SERVICIOS=("nginx" "mysql" "apache2")  # Lista de servicios a monitorear
 HOST_PING="google.com"  # Host para medir la latencia
-ARCHIVO_LOG="/var/log/monitor_sistema.log"  # Archivo de log
+ARCHIVO_LOG="reporte.log"  # Archivo de log
 
 # Función para medir la latencia de la red
 verificar_ping() {
