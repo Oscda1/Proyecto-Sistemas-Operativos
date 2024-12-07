@@ -1,0 +1,42 @@
+#!/bin/bash
+
+# Función para calcular las palabras por minuto
+calcular_ppm() {
+    palabras=$1
+    tiempo=$2
+    ppm=$((palabras * 60 / tiempo))
+    echo $ppm
+}
+
+# Función para iniciar el test de velocidad de escritura
+iniciar_test() {
+    palabras=("rapido" "escribir" "prueba" "velocidad" "palabras" "minuto" "usuario" "exito" "aumentando" "chmod" "if" "script" "bash" "echo" "Sammy" "Oscar" "Richi" "operativos" "Gala" "bonbom" "Gary" "Roby" "mkdir" "touch" "bin" "cd" "UNIX" "cat" "echo" "get" "kill" "virus" "man" "uname" "whoami" "Deidad" "Leocundo" "UABC" "FCQI" "Pinto" "Zheng" "Tejuino")
+    total_palabras=0
+    tiempo=60
+    inicio=$(date +%s)
+
+    echo "Comienza el test de velocidad de escritura. Tienes $tiempo segundos para escribir tantas palabras como puedas."
+    echo "Escribe las siguientes palabras lo más rápido posible:"
+
+    while (( $(date +%s) - inicio < tiempo )); do
+        indice=$((RANDOM % ${#palabras[@]}))
+            echo -n "${palabras[$indice]}: "
+            read entrada
+            if [[ "$entrada" == "${palabras[$indice]}" ]]; then
+                total_palabras=$((total_palabras + 1))
+            fi
+            if (( $(date +%s) - inicio >= tiempo )); then
+                break
+            fi
+    done
+
+    fin=$(date +%s)
+    duracion=$((fin - inicio))
+    ppm=$(calcular_ppm $total_palabras $duracion)
+
+    echo "Test finalizado. Palabras correctas: $total_palabras"
+    echo "Tu velocidad de escritura es de $ppm palabras por minuto (PPM)."
+}
+
+# Iniciar el test
+iniciar_test
