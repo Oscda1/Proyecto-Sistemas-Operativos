@@ -7,42 +7,47 @@ ARCHIVO_LOG="reporte.log"  # Archivo de log
 
 # Función para medir la latencia de la red
 verificar_ping() {
-    echo "Midiendo la latencia de la red a $HOST_PING..." >> "$ARCHIVO_LOG"
-    resultado_ping=$(ping -c 4 "$HOST_PING" | tail -n 2 | head -n 1 | awk -F'/' '{print $5}')
-    echo "Latencia promedio: $resultado_ping ms" >> "$ARCHIVO_LOG"
+    echo "Midiendo la latencia de la red a $HOST_PING..."
+    ping_resultado=$(ping -c 4 google.com | tail -n 2 | head -n 1 | grep -o 'time [0-9]*ms' | sed 's/time //')
+    if [ -z "$ping_resultado" ]; then
+        echo "No hay conexion a Internet"
+    else
+        echo "Latencia promedio: $ping_resultado" >> "$ARCHIVO_LOG"
+    fi
 }
 
 # Función para obtener el uso de la CPU
 verificar_uso_cpu() {
-    echo "Verificando uso de la CPU..." >> "$ARCHIVO_LOG"
+    echo "Verificando uso de la CPU..."
     uso_cpu=$(top -bn1 | grep "Cpu(s)" | sed "s/.*, *\([0-9.]*\)%* id.*/\1/" | awk '{print 100 - $1}')
     echo "Uso de CPU: $uso_cpu%" >> "$ARCHIVO_LOG"
 }
 
 # Función para obtener el uso de la memoria
 verificar_uso_memoria() {
-    echo "Verificando uso de la memoria..." >> "$ARCHIVO_LOG"
+    echo "Verificando uso de la memoria..."
     uso_memoria=$(free | grep Mem | awk '{print $3/$2 * 100.0}')
     echo "Uso de Memoria: $uso_memoria%" >> "$ARCHIVO_LOG"
 }
 
 # Función para verificar el uso del disco
 verificar_uso_disco() {
-    echo "Verificando uso del disco..." >> "$ARCHIVO_LOG"
+    echo "Verificando uso del disco..."
     uso_disco=$(df / | grep / | awk '{ print $5 }' | sed 's/%//g')
     echo "Uso de Disco: $uso_disco%" >> "$ARCHIVO_LOG"
 }
 
 # Función para obtener la información del sistema
 obtener_info_sistema() {
-    echo "Recopilando información del sistema..." >> "$ARCHIVO_LOG"
+    echo "Recopilando información del sistema..."
     echo "Fecha y hora: $(date)" >> "$ARCHIVO_LOG"
     echo "Uptime: $(uptime -p)" >> "$ARCHIVO_LOG"
 }
 
 # Función para generar el reporte completo
 generar_reporte() {
-    echo "Generando reporte del sistema..." > "$ARCHIVO_LOG"
+    echo "Generando reporte del sistema..."
+    echo "" > "$ARCHIVO_LOG"
     obtener_info_sistema
     verificar_ping
     verificar_uso_cpu
@@ -51,13 +56,5 @@ generar_reporte() {
     echo "Reporte generado en $ARCHIVO_LOG"
 }
 
-# Función para visualizar el contenido del log
-ver_log() {
-    cat "$ARCHIVO_LOG"
-}
-
 # Ejecutar el monitoreo y generar el reporte
 generar_reporte
-
-# Mostrar el contenido del log (opcional)
-ver_log
