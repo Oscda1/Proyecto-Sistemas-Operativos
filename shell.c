@@ -83,53 +83,73 @@ void editar(char **args) {
   printf("Archivo %s editado exitosamente.\n", args[1]);
 }
 
+void ejecutar_cd(char *comando) {
+    char *directorio = strtok(comando + 3, " \n");
+
+    if (directorio == NULL) {
+        directorio = getenv("HOME");
+        if (directorio == NULL) {
+            fprintf(stderr, "Error: no se pudo determinar el directorio HOME.\n");
+            return;
+        }
+    }
+
+    if (chdir(directorio) != 0) {
+        perror("Error al cambiar de directorio");
+    } else {
+        char cwd[1024];
+        if (getcwd(cwd, sizeof(cwd)) != NULL) {
+            printf("Directorio actual: %s\n", cwd);
+        } else {
+            perror("Error al obtener el directorio actual");
+        }
+    }
+}
+
+
 void ejecutar_redireccion(char *comando) {
     char *comando_base;
     char *archivo;
-    int append = 0; // Modo para >> (append)
+    int concatenar = 0;
 
     size_t len = strlen(comando);
     if(len > 0 && comando[len-1] == '\n'){
       comando[len-1] = '\0';
     }
 
-    // Detectar el tipo de redirección
     if ((archivo = strstr(comando, ">>")) != NULL) {
-        append = 1; // Modo append
+        concatenar = 1;
     } else if ((archivo = strchr(comando, '>')) != NULL) {
-        append = 0; // Modo truncar
+        concatenar = 0;
     } else {
         ejecutar_comando(comando);
         return;
     }
 
-    // Separar el comando y el archivo
-    *archivo = '\0'; // Reemplazar '>' o ">>" por un terminador nulo
-    archivo += append ? 2 : 1; // Saltar '>' o ">>"
-    while (*archivo == ' ') archivo++; // Saltar espacios en blanco
+    *archivo = '\0';
+    archivo += concatenar ? 2 : 1;
+    while (*archivo == ' ') archivo++;
 
     if (*archivo == '\0') {
         fprintf(stderr, "Error: no se especificó archivo para redirección.\n");
         return;
     }
 
-    // Abrir el archivo para redirección
-    int fd = open(archivo, O_WRONLY | O_CREAT | (append ? O_APPEND : O_TRUNC), 0644);
+    int fd = open(archivo, O_WRONLY | O_CREAT | (concatenar ? O_APPEND : O_TRUNC), 0644);
     if (fd == -1) {
         perror("Error al abrir el archivo");
         return;
     }
 
-    // Ejecutar el comando con redirección
-    comando_base = strtok(comando, "\n"); // Eliminar salto de línea
+    comando_base = strtok(comando, "\n");
     if (fork() == 0) {
-        dup2(fd, STDOUT_FILENO); // Redirigir salida estándar al archivo
+        dup2(fd, STDOUT_FILENO);
         close(fd);
         ejecutar_comando(comando_base);
-        exit(EXIT_FAILURE); // Salir si execvp falla
+        exit(EXIT_FAILURE);
     } else {
         close(fd);
-        wait(NULL); // Esperar al proceso hijo
+        wait(NULL);
     }
 }
 
@@ -195,6 +215,8 @@ int main() {
     } else if (strncmp(comando, "editar", 6) == 0) {
       char *args[] = {strtok(comando, " \n"), strtok(NULL, " \n"), NULL};
       editar(args);
+    }else if(strncmp(comando, "cd", 2) == 0){
+      ejecutar_cd(comando);
     } else if (strchr(comando, '|') != NULL) {
       ejecutar_pipe(comando);
     } else if (strchr(comando, '>') != NULL) {
