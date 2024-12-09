@@ -1,95 +1,102 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdint.h>
 
-#define MAX_LLAVE 64
-#define BUFFER_SIZE 1024
-
-void cifrar_archivo(const char *ruta, const char *llave) {
-    FILE *archivo = fopen(ruta, "rb");
-    if (!archivo) {
-        perror("Error al abrir el archivo");
-        exit(EXIT_FAILURE);
+// Función para encriptar/desencriptar con control de rango
+void encryptDecrypt(char *input, const char *key, size_t lenInput) {
+    size_t lenKey = strlen(key);
+    for (size_t i = 0; i < lenInput; i++) {
+        input[i] = (unsigned char)((input[i] ^ key[i % lenKey]) % 256);
     }
-
-    FILE *archivo_cifrado = fopen("archivo_cifrado", "wb");
-    if (!archivo_cifrado) {
-        perror("Error al crear el archivo cifrado");
-        fclose(archivo);
-        exit(EXIT_FAILURE);
-    }
-
-    uint8_t buffer[BUFFER_SIZE];
-    size_t bytes_leidos;
-    size_t longitud_llave = strlen(llave);
-
-    while ((bytes_leidos = fread(buffer, 1, BUFFER_SIZE, archivo)) > 0) {
-        for (size_t i = 0; i < bytes_leidos; i++) {
-            buffer[i] ^= llave[i % longitud_llave]; // Enmascaramiento XOR
-            buffer[i] = (buffer[i] << 1) | (buffer[i] >> 7); // Desplazamiento bit a bit
-            buffer[i] += 1; // Suma
-        }
-        fwrite(buffer, 1, bytes_leidos, archivo_cifrado);
-    }
-
-    fclose(archivo);
-    fclose(archivo_cifrado);
 }
 
-void descifrar_archivo(const char *ruta, const char *llave) {
-    FILE *archivo_cifrado = fopen(ruta, "rb");
-    if (!archivo_cifrado) {
-        perror("Error al abrir el archivo cifrado");
-        exit(EXIT_FAILURE);
+// Función para cargar el contenido del archivo en memoria
+char *loadFile(const char *filename, size_t *fileSize) {
+    FILE *file = fopen(filename, "rb");
+    if (!file) {
+        perror("Error al abrir el archivo");
+        return NULL;
     }
 
-    FILE *archivo_descifrado = fopen("archivo_descifrado", "wb");
-    if (!archivo_descifrado) {
-        perror("Error al crear el archivo descifrado");
-        fclose(archivo_cifrado);
-        exit(EXIT_FAILURE);
+    // Obtener el tamaño del archivo
+    fseek(file, 0, SEEK_END);
+    *fileSize = ftell(file);
+    rewind(file);
+
+    // Reservar memoria para el contenido
+    char *content = (char *)malloc(*fileSize + 1);
+    if (!content) {
+        perror("Error al asignar memoria");
+        fclose(file);
+        return NULL;
     }
 
-    uint8_t buffer[BUFFER_SIZE];
-    size_t bytes_leidos;
-    size_t longitud_llave = strlen(llave);
+    // Leer el contenido del archivo
+    fread(content, 1, *fileSize, file);
+    fclose(file);
+    content[*fileSize] = '\0'; // Asegurar terminación de cadena
 
-    while ((bytes_leidos = fread(buffer, 1, BUFFER_SIZE, archivo_cifrado)) > 0) {
-        for (size_t i = 0; i < bytes_leidos; i++) {
-            buffer[i] -= 1; // Resta
-            buffer[i] = (buffer[i] >> 1) | (buffer[i] << 7); // Desplazamiento bit a bit inverso
-            buffer[i] ^= llave[i % longitud_llave]; // Enmascaramiento XOR inverso
-        }
-        fwrite(buffer, 1, bytes_leidos, archivo_descifrado);
+    return content;
+}
+
+// Función para guardar contenido en un archivo
+int saveFile(const char *filename, const char *content, size_t fileSize) {
+    FILE *file = fopen(filename, "wb");
+    if (!file) {
+        perror("Error al escribir en el archivo");
+        return 0;
     }
-
-    fclose(archivo_cifrado);
-    fclose(archivo_descifrado);
+    fwrite(content, 1, fileSize, file);
+    fclose(file);
+    return 1;
 }
 
 int main(int argc, char *argv[]) {
     if (argc != 4) {
-        fprintf(stderr, "Uso: %s /boveda [ruta] [llave]\n", argv[0]);
-        exit(EXIT_FAILURE);
+        fprintf(stderr, "Uso: %s -e|-d archivo clave\n", argv[0]);
+        return 1;
     }
 
-    const char *comando = argv[1];
-    const char *ruta = argv[2];
-    const char *llave = argv[3];
+    const char *option = argv[1];
+    const char *filename = argv[2];
+    const char *key = argv[3];
 
-    if (strlen(llave) > MAX_LLAVE) {
-        fprintf(stderr, "La llave privada no debe exceder los %d bytes\n", MAX_LLAVE);
-        exit(EXIT_FAILURE);
+    // Validar que la opción es correcta
+    if (strcmp(option, "-e") != 0 && strcmp(option, "-d") != 0) {
+        fprintf(stderr, "Opción no válida. Use -e para encriptar o -d para desencriptar.\n");
+        return 1;
     }
 
-    if (strcmp(comando, "/boveda") == 0) {
-        cifrar_archivo(ruta, llave);
-        printf("Archivo cifrado exitosamente.\n");
-    } else {
-        fprintf(stderr, "Comando no reconocido.\n");
-        exit(EXIT_FAILURE);
+    // Cargar el contenido del archivo
+    size_t fileSize;
+    char *content = loadFile(filename, &fileSize);
+    if (!content) {
+        return 1;
     }
 
+    if (strcmp(option, "-e") == 0) {
+        // Encriptar el archivo y sobrescribir
+        encryptDecrypt(content, key, fileSize);
+        if (saveFile(filename, content, fileSize)) {
+            printf("Archivo encriptado y sobrescrito con éxito.\n");
+        }
+    } else if (strcmp(option, "-d") == 0) {
+        // Desencriptar el archivo y mostrar en pantalla
+        char *decryptedContent = (char *)malloc(fileSize + 1);
+        if (!decryptedContent) {
+            perror("Error al asignar memoria");
+            free(content);
+            return 1;
+        }
+        memcpy(decryptedContent, content, fileSize);
+        encryptDecrypt(decryptedContent, key, fileSize);
+        decryptedContent[fileSize] = '\0'; // Asegurar terminación
+        printf("%s\n", decryptedContent);
+        free(decryptedContent);
+    }
+
+    // Liberar memoria
+    free(content);
     return 0;
 }
+

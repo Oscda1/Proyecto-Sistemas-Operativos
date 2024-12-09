@@ -7,20 +7,26 @@
 #include <unistd.h>
 
 #define MAX_LINEA 1024
+#define AZUL "\033[36m"
+#define BLANCO "\033[0m"
 
 void mostrar_ayuda() {
   printf("Comandos disponibles:\n");
-  printf("  estado        - Ejecuta el script estado\n");
-  printf("  ppm           - Ejecuta el script ppm\n");
+  printf("  estado        - Ejecuta una verificacion del estado de computo\n");
+  printf("  ppm           - Test de palabras por minuto\n");
   printf("  crear         - Crea un archivo\n");
   printf("  leer          - Lee un archivo\n");
   printf("  editar        - Edita un archivo\n");
+  printf("  agenda        - Agenda de tareas\n");
   printf("  help          - Muestra esta ayuda\n");
   printf("  exit          - Salir del shell\n");
+  printf("  buscador      - Buscador de comandos ?\n");
+  printf("  camiones      - Carrera de camiones\n");
+  printf("  boveda        - Encriptacion/Desencriptacion de archivos\n");
 }
 
 void ejecutar_comando(char *comando) {
-  char *argumentos[MAX_LINEA / 2 + 1];
+  char *argumentos[MAX_LINEA];
   int i = 0;
 
   argumentos[i] = strtok(comando, " \n");
@@ -84,75 +90,75 @@ void editar(char **args) {
 }
 
 void ejecutar_cd(char *comando) {
-    char *directorio = strtok(comando + 3, " \n");
+  char *directorio = strtok(comando + 3, " \n");
 
+  if (directorio == NULL) {
+    directorio = getenv("HOME");
     if (directorio == NULL) {
-        directorio = getenv("HOME");
-        if (directorio == NULL) {
-            fprintf(stderr, "Error: no se pudo determinar el directorio HOME.\n");
-            return;
-        }
+      fprintf(stderr, "Error: no se pudo determinar el directorio HOME.\n");
+      return;
     }
+  }
 
-    if (chdir(directorio) != 0) {
-        perror("Error al cambiar de directorio");
+  if (chdir(directorio) != 0) {
+    perror("Error al cambiar de directorio");
+  } else {
+    char cwd[1024];
+    if (getcwd(cwd, sizeof(cwd)) != NULL) {
+      printf("Directorio actual: %s\n", cwd);
     } else {
-        char cwd[1024];
-        if (getcwd(cwd, sizeof(cwd)) != NULL) {
-            printf("Directorio actual: %s\n", cwd);
-        } else {
-            perror("Error al obtener el directorio actual");
-        }
+      perror("Error al obtener el directorio actual");
     }
+  }
 }
-
 
 void ejecutar_redireccion(char *comando) {
-    char *comando_base;
-    char *archivo;
-    int concatenar = 0;
+  char *comando_base;
+  char *archivo;
+  int concatenar = 0;
 
-    size_t len = strlen(comando);
-    if(len > 0 && comando[len-1] == '\n'){
-      comando[len-1] = '\0';
-    }
+  size_t len = strlen(comando);
+  if (len > 0 && comando[len - 1] == '\n') {
+    comando[len - 1] = '\0';
+  }
 
-    if ((archivo = strstr(comando, ">>")) != NULL) {
-        concatenar = 1;
-    } else if ((archivo = strchr(comando, '>')) != NULL) {
-        concatenar = 0;
-    } else {
-        ejecutar_comando(comando);
-        return;
-    }
+  if ((archivo = strstr(comando, ">>")) != NULL) {
+    concatenar = 1;
+  } else if ((archivo = strchr(comando, '>')) != NULL) {
+    concatenar = 0;
+  } else {
+    ejecutar_comando(comando);
+    return;
+  }
 
-    *archivo = '\0';
-    archivo += concatenar ? 2 : 1;
-    while (*archivo == ' ') archivo++;
+  *archivo = '\0';
+  archivo += concatenar ? 2 : 1;
+  while (*archivo == ' ')
+    archivo++;
 
-    if (*archivo == '\0') {
-        fprintf(stderr, "Error: no se especificó archivo para redirección.\n");
-        return;
-    }
+  if (*archivo == '\0') {
+    fprintf(stderr, "Error: no se especifico archivo para redireccion.\n");
+    return;
+  }
 
-    int fd = open(archivo, O_WRONLY | O_CREAT | (concatenar ? O_APPEND : O_TRUNC), 0644);
-    if (fd == -1) {
-        perror("Error al abrir el archivo");
-        return;
-    }
+  int fd = open(archivo, O_WRONLY | O_CREAT | (concatenar ? O_APPEND : O_TRUNC),
+                0644);
+  if (fd == -1) {
+    perror("Error al abrir el archivo");
+    return;
+  }
 
-    comando_base = strtok(comando, "\n");
-    if (fork() == 0) {
-        dup2(fd, STDOUT_FILENO);
-        close(fd);
-        ejecutar_comando(comando_base);
-        exit(EXIT_FAILURE);
-    } else {
-        close(fd);
-        wait(NULL);
-    }
+  comando_base = strtok(comando, "\n");
+  if (fork() == 0) {
+    dup2(fd, STDOUT_FILENO);
+    close(fd);
+    ejecutar_comando(comando_base);
+    exit(EXIT_FAILURE);
+  } else {
+    close(fd);
+    wait(NULL);
+  }
 }
-
 
 void ejecutar_pipe(char *comando) {
   char *comandos[2];
@@ -187,15 +193,51 @@ void ejecutar_pipe(char *comando) {
   wait(NULL);
 }
 
+#define PATH_MAX 256
+
 int main() {
   char comando[MAX_LINEA];
+  char cwd[PATH_MAX];
+      if (getcwd(cwd, sizeof(cwd)) == NULL) {
+        perror("getcwd");
+        return 0;
+    }
 
+    const char *current_path = getenv("PATH");
+    if (current_path == NULL) {
+        fprintf(stderr, "Error: No se pudo obtener el PATH actual.\n");
+        return 0;
+    }
+
+    // Crear un nuevo PATH con el directorio actual
+    size_t new_path_size = strlen(current_path) + strlen(cwd) + 2; // 1 para ':' y 1 para '\0'
+    char *new_path = malloc(new_path_size);
+    if (new_path == NULL) {
+        perror("malloc");
+        return 0;
+    }
+
+    snprintf(new_path, new_path_size, "%s:%s", current_path, cwd);
+
+    // Establecer la nueva variable de entorno PATH
+    if (setenv("PATH", new_path, 1) != 0) {
+        perror("setenv");
+        free(new_path);
+        return 0;
+    }
+    free(new_path);
   // Mensaje de bienvenida
   printf("Bienvenido al shell de los pollos hermanos!\n");
+  printf("Recuerda verificar si tienes tareas pendientes!.\n");
   printf("Escribe 'help' para ver los comandos disponibles.\n");
 
   while (1) {
-    printf("shell> ");
+    if (getcwd(cwd, sizeof(cwd)) != NULL) {
+      printf(AZUL "%s" BLANCO " $ ", cwd);
+    } else {
+      perror("Error al obtener el directorio actual");
+      return 1;
+    }
     if (fgets(comando, MAX_LINEA, stdin) == NULL) {
       break;
     }
@@ -215,16 +257,12 @@ int main() {
     } else if (strncmp(comando, "editar", 6) == 0) {
       char *args[] = {strtok(comando, " \n"), strtok(NULL, " \n"), NULL};
       editar(args);
-    }else if(strncmp(comando, "cd", 2) == 0){
+    } else if (strncmp(comando, "cd", 2) == 0) {
       ejecutar_cd(comando);
     } else if (strchr(comando, '|') != NULL) {
       ejecutar_pipe(comando);
     } else if (strchr(comando, '>') != NULL) {
       ejecutar_redireccion(comando);
-    }else if (strcmp(comando, "estado\n") == 0) {
-      ejecutar_comando("./estado");
-    } else if (strcmp(comando, "ppm\n") == 0) {
-      ejecutar_comando("./ppm");
     } else {
       ejecutar_comando(comando);
     }
