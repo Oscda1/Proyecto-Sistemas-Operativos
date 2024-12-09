@@ -5,6 +5,8 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include <ctype.h>
+#include <dirent.h>
 
 #define MAX_LINEA 1024
 #define AZUL "\033[36m"
@@ -42,6 +44,43 @@ void ejecutar_comando(char *comando) {
   } else {
     wait(NULL);
   }
+}
+
+void list_commands_to_file() {
+    DIR *dir;
+    struct dirent *entry;
+    int fd = open("comandos", O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    if (fd < 0) {
+        perror("open");
+        exit(EXIT_FAILURE);
+    }
+
+    // Escribir los comandos personalizados
+    const char *custom_commands[] = {
+        "boveda", "buscador", "ppm", "estado", "agenda"
+    };
+
+    for (int i = 0; i < 5; i++) {
+        write(fd, custom_commands[i], strlen(custom_commands[i]));
+        write(fd, "\n", 1); // Salto de línea
+    }
+
+    // Escribir los comandos del sistema desde /bin
+    dir = opendir("/bin");
+    if (dir == NULL) {
+        perror("opendir");
+        exit(1);
+    }
+
+    while ((entry = readdir(dir)) != NULL) {
+        if (entry->d_type == DT_REG) {
+            write(fd, entry->d_name, strlen(entry->d_name));
+            write(fd, "\n", 1); // Salto de línea
+        }
+    }
+
+    closedir(dir);
+    close(fd);
 }
 
 void crear(char **args) {
@@ -193,7 +232,6 @@ void ejecutar_pipe(char *comando) {
   wait(NULL);
 }
 
-#define PATH_MAX 256
 
 int main() {
   char comando[MAX_LINEA];
@@ -227,6 +265,7 @@ int main() {
     }
     free(new_path);
   // Mensaje de bienvenida
+  list_commands_to_file();
   printf("Bienvenido al shell de los pollos hermanos!\n");
   printf("Recuerda verificar si tienes tareas pendientes!.\n");
   printf("Escribe 'help' para ver los comandos disponibles.\n");
